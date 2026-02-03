@@ -5,7 +5,57 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"io"
+        "sync"
+	"time"
 )
+
+type Metrics struct {
+	sync.Mutex
+	BytesSent      map[byte]int
+	BytesReceived  map[byte]int
+	FramesSent     map[byte]int
+	FramesReceived map[byte]int
+	Heartbeats     int
+	LastHeartbeat  time.Time
+	Reconnects     int
+}
+
+func NewMetrics() *Metrics {
+	return &Metrics{
+		BytesSent:      make(map[byte]int),
+		BytesReceived:  make(map[byte]int),
+		FramesSent:     make(map[byte]int),
+		FramesReceived: make(map[byte]int),
+		LastHeartbeat:  time.Now(),
+	}
+}
+
+func (m *Metrics) Sent(streamID byte, n int) {
+	m.Lock()
+	defer m.Unlock()
+	m.BytesSent[streamID] += n
+	m.FramesSent[streamID]++
+}
+
+func (m *Metrics) Received(streamID byte, n int) {
+	m.Lock()
+	defer m.Unlock()
+	m.BytesReceived[streamID] += n
+	m.FramesReceived[streamID]++
+}
+
+func (m *Metrics) Heartbeat() {
+	m.Lock()
+	defer m.Unlock()
+	m.Heartbeats++
+	m.LastHeartbeat = time.Now()
+}
+
+func (m *Metrics) Reconnect() {
+	m.Lock()
+	defer m.Unlock()
+	m.Reconnects++
+}
 
 // Frame helpers
 

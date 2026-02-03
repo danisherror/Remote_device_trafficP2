@@ -25,7 +25,11 @@ func main() {
 	stream1 := make(chan string, 5)
 	stream2 := make(chan string, 5)
 
-	// producer goroutines
+	metrics := common.NewMetrics()
+	conn := connect()
+	defer conn.Close()
+
+	// Producer goroutines
 	go func() {
 		for {
 			stream1 <- "stream1 message " + time.Now().Format(time.RFC3339)
@@ -40,37 +44,55 @@ func main() {
 		}
 	}()
 
-	conn := connect()
-	defer conn.Close()
-
-	// heartbeat goroutine
+	// Heartbeat goroutine
 	go func() {
 		for {
 			time.Sleep(3 * time.Second)
 			if err := common.WriteFrameCompressed(conn, 0, []byte("PING")); err != nil {
 				log.Println("Heartbeat failed, reconnecting:", err)
 				conn.Close()
+				metrics.Reconnect()
 				conn = connect()
+			} else {
+				metrics.Heartbeat()
 			}
 		}
 	}()
 
-	// sender loop
+	// Metrics logging goroutine
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			metrics.Lock()
+			log.Printf("Sender Metrics: BytesSent=%v, FramesSent=%v, Heartbeats=%d, Reconnects=%d\n",
+				metrics.BytesSent, metrics.FramesSent, metrics.Heartbeats, metrics.Reconnects)
+			metrics.Unlock()
+		}
+	}()
+
+	// Sender loop
 	for {
 		select {
 		case msg := <-stream1:
 			if err := common.WriteFrameCompressed(conn, 1, []byte(msg)); err != nil {
 				log.Println("Write failed, reconnecting:", err)
 				conn.Close()
+				metrics.Reconnect()
 				conn = connect()
-				common.WriteFrame(conn, 1, []byte(msg))
+				common.WriteFrameCompressed(conn, 1, []byte(msg))
+			} else {
+				metrics.Sent(1, len(msg))
 			}
+
 		case msg := <-stream2:
 			if err := common.WriteFrameCompressed(conn, 2, []byte(msg)); err != nil {
 				log.Println("Write failed, reconnecting:", err)
 				conn.Close()
+				metrics.Reconnect()
 				conn = connect()
-				common.WriteFrame(conn, 2, []byte(msg))
+				common.WriteFrameCompressed(conn, 2, []byte(msg))
+			} else {
+				metrics.Sent(2, len(msg))
 			}
 		}
 	}

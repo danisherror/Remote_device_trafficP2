@@ -3,11 +3,29 @@ package main
 import (
 	"log"
 	"net"
-        "time"
+	"time"
+
 	"p2_ssh_stream/common"
 )
 
 func main() {
+	metrics := common.NewMetrics()
+
+	// Log receiver metrics every 5 seconds
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			metrics.Lock()
+			heartbeatDelay := time.Since(metrics.LastHeartbeat)
+			if heartbeatDelay > 10*time.Second {
+				log.Println("WARNING: Heartbeat delay > 10s")
+			}
+			log.Printf("Receiver Metrics: BytesReceived=%v, FramesReceived=%v, Heartbeats=%d\n",
+				metrics.BytesReceived, metrics.FramesReceived, metrics.Heartbeats)
+			metrics.Unlock()
+		}
+	}()
+
 	ln, err := net.Listen("tcp", "127.0.0.1:9000")
 	if err != nil {
 		log.Fatal(err)
@@ -19,33 +37,26 @@ func main() {
 		if err != nil {
 			continue
 		}
-		go handle(conn)
+		go handle(conn, metrics)
 	}
 }
 
-func handle(c net.Conn) {
+func handle(c net.Conn, metrics *common.Metrics) {
 	defer c.Close()
-	lastHeartbeat := time.Now()
-
 	for {
 		streamID, msg, err := common.ReadFrameCompressed(c)
 		if err != nil {
-			log.Println("connection closed:", err)
+			log.Println("Connection closed:", err)
 			return
 		}
 
 		if streamID == 0 {
 			log.Println("Received heartbeat:", string(msg))
-			lastHeartbeat = time.Now()
+			metrics.Heartbeat()
 			continue
 		}
 
 		log.Printf("[Stream %d] %s\n", streamID, msg)
-
-		// check if heartbeat timeout
-		if time.Since(lastHeartbeat) > 10*time.Second {
-			log.Println("No heartbeat received in 10s, closing connection")
-			return
-		}
+		metrics.Received(streamID, len(msg))
 	}
 }
