@@ -1,0 +1,3 @@
+module p2_ssh_stream
+
+go 1.25.6

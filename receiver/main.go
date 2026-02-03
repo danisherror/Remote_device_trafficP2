@@ -1,10 +1,10 @@
 package main
 
 import (
-	"io"
 	"log"
 	"net"
 )
+import "p2_ssh_stream/common"
 
 func main() {
 	ln, err := net.Listen("tcp", "127.0.0.1:9000")
@@ -24,5 +24,14 @@ func main() {
 
 func handle(c net.Conn) {
 	defer c.Close()
-	io.Copy(log.Writer(), c)
+
+	for {
+		msg, err := common.ReadFrame(c)
+		if err != nil {
+			log.Println("connection closed:", err)
+			return
+		}
+
+		log.Printf("RECEIVED: %s\n", msg)
+	}
 }

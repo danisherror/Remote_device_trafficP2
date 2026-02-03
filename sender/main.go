@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"time"
+        "p2_ssh_stream/common"
 )
 
 func main() {
@@ -13,8 +14,15 @@ func main() {
 	}
 	defer conn.Close()
 
+	i := 0
 	for {
-		conn.Write([]byte("hello over ssh tunnel\n"))
+		msg := []byte("message #" + time.Now().Format(time.RFC3339))
+		err := common.WriteFrame(conn, msg)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		i++
 		time.Sleep(1 * time.Second)
 	}
 }
