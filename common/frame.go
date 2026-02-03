@@ -5,32 +5,44 @@ import (
 	"io"
 )
 
-// WriteFrame writes [len][payload]
-func WriteFrame(w io.Writer, data []byte) error {
-	length := uint32(len(data))
+type Frame struct {
+	StreamID byte
+	Payload  []byte
+}
 
-	// write length
+// WriteFrame writes a multiplexed frame: [streamID][length][payload]
+func WriteFrame(w io.Writer, streamID byte, payload []byte) error {
+	length := uint32(len(payload))
+
+	if _, err := w.Write([]byte{streamID}); err != nil {
+		return err
+	}
+
 	if err := binary.Write(w, binary.BigEndian, length); err != nil {
 		return err
 	}
 
-	// write payload
-	_, err := w.Write(data)
+	_, err := w.Write(payload)
 	return err
 }
 
-// ReadFrame reads exactly one framed message
-func ReadFrame(r io.Reader) ([]byte, error) {
-	var length uint32
+// ReadFrame reads one multiplexed frame
+func ReadFrame(r io.Reader) (byte, []byte, error) {
+	streamIDBuf := make([]byte, 1)
+	if _, err := io.ReadFull(r, streamIDBuf); err != nil {
+		return 0, nil, err
+	}
+	streamID := streamIDBuf[0]
 
-	// read length
+	var length uint32
 	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	buf := make([]byte, length)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return 0, nil, err
+	}
 
-	// read payload fully
-	_, err := io.ReadFull(r, buf)
-	return buf, err
+	return streamID, buf, nil
 }
