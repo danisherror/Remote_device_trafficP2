@@ -15,21 +15,36 @@ func main() {
 	}
 	defer conn.Close()
 
-	i := 0
+	// buffered channel for backpressure
+	stream1 := make(chan string, 5)
+	stream2 := make(chan string, 5)
+
+	// producer goroutines
+	go func() {
+		for {
+			stream1 <- "stream1 message " + time.Now().Format(time.RFC3339)
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for {
+			stream2 <- "stream2 message " + time.Now().Format(time.RFC3339)
+			time.Sleep(700 * time.Millisecond)
+		}
+	}()
+
+	// sender loop
 	for {
-		// send on stream 1
-		err := common.WriteFrame(conn, 1, []byte("stream1 message "+time.Now().Format(time.RFC3339)))
-		if err != nil {
-			log.Fatal(err)
+		select {
+		case msg := <-stream1:
+			if err := common.WriteFrame(conn, 1, []byte(msg)); err != nil {
+				log.Fatal(err)
+			}
+		case msg := <-stream2:
+			if err := common.WriteFrame(conn, 2, []byte(msg)); err != nil {
+				log.Fatal(err)
+			}
 		}
-
-		// send on stream 2
-		err = common.WriteFrame(conn, 2, []byte("stream2 message "+time.Now().Format(time.RFC3339)))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		i++
-		time.Sleep(1 * time.Second)
 	}
 }
