@@ -123,6 +123,13 @@ ssh -N -L 8000:127.0.0.1:9000 localhost
 * Add **Prometheus/Grafana metrics export**
 * Implement **stream prioritization or QoS**
 
+---
+## Optional enhancements for P2:
+
+1. Export metrics over HTTP for Prometheus/Grafana
+2. Add logging levels (info/debug/warning)
+3. Add configuration for stream IDs, heartbeat intervals, and max reconnect retries
+
 
 
 
