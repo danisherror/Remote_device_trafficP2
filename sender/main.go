@@ -8,14 +8,20 @@ import (
 	"p2_ssh_stream/common"
 )
 
-func main() {
-	conn, err := net.Dial("tcp", "127.0.0.1:8000")
-	if err != nil {
-		log.Fatal(err)
+func connect() net.Conn {
+	for {
+		conn, err := net.Dial("tcp", "127.0.0.1:8000")
+		if err != nil {
+			log.Println("Failed to connect, retrying in 2s:", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		log.Println("Connected to receiver")
+		return conn
 	}
-	defer conn.Close()
+}
 
-	// buffered channel for backpressure
+func main() {
 	stream1 := make(chan string, 5)
 	stream2 := make(chan string, 5)
 
@@ -34,26 +40,37 @@ func main() {
 		}
 	}()
 
-        go func() {
-            for {
-                time.Sleep(3 * time.Second) // heartbeat interval
-                    if err := common.WriteFrame(conn, 0, []byte("PING")); err != nil {
-                        log.Println("Heartbeat failed:", err)
-                            return
-                    }
-            }
-        }()
+	conn := connect()
+	defer conn.Close()
+
+	// heartbeat goroutine
+	go func() {
+		for {
+			time.Sleep(3 * time.Second)
+			if err := common.WriteFrame(conn, 0, []byte("PING")); err != nil {
+				log.Println("Heartbeat failed, reconnecting:", err)
+				conn.Close()
+				conn = connect()
+			}
+		}
+	}()
 
 	// sender loop
 	for {
 		select {
 		case msg := <-stream1:
 			if err := common.WriteFrame(conn, 1, []byte(msg)); err != nil {
-				log.Fatal(err)
+				log.Println("Write failed, reconnecting:", err)
+				conn.Close()
+				conn = connect()
+				common.WriteFrame(conn, 1, []byte(msg))
 			}
 		case msg := <-stream2:
 			if err := common.WriteFrame(conn, 2, []byte(msg)); err != nil {
-				log.Fatal(err)
+				log.Println("Write failed, reconnecting:", err)
+				conn.Close()
+				conn = connect()
+				common.WriteFrame(conn, 2, []byte(msg))
 			}
 		}
 	}
