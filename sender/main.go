@@ -34,6 +34,16 @@ func main() {
 		}
 	}()
 
+        go func() {
+            for {
+                time.Sleep(3 * time.Second) // heartbeat interval
+                    if err := common.WriteFrame(conn, 0, []byte("PING")); err != nil {
+                        log.Println("Heartbeat failed:", err)
+                            return
+                    }
+            }
+        }()
+
 	// sender loop
 	for {
 		select {
