@@ -28,7 +28,7 @@ func handle(c net.Conn) {
 	lastHeartbeat := time.Now()
 
 	for {
-		streamID, msg, err := common.ReadFrame(c)
+		streamID, msg, err := common.ReadFrameCompressed(c)
 		if err != nil {
 			log.Println("connection closed:", err)
 			return

@@ -47,7 +47,7 @@ func main() {
 	go func() {
 		for {
 			time.Sleep(3 * time.Second)
-			if err := common.WriteFrame(conn, 0, []byte("PING")); err != nil {
+			if err := common.WriteFrameCompressed(conn, 0, []byte("PING")); err != nil {
 				log.Println("Heartbeat failed, reconnecting:", err)
 				conn.Close()
 				conn = connect()
@@ -59,14 +59,14 @@ func main() {
 	for {
 		select {
 		case msg := <-stream1:
-			if err := common.WriteFrame(conn, 1, []byte(msg)); err != nil {
+			if err := common.WriteFrameCompressed(conn, 1, []byte(msg)); err != nil {
 				log.Println("Write failed, reconnecting:", err)
 				conn.Close()
 				conn = connect()
 				common.WriteFrame(conn, 1, []byte(msg))
 			}
 		case msg := <-stream2:
-			if err := common.WriteFrame(conn, 2, []byte(msg)); err != nil {
+			if err := common.WriteFrameCompressed(conn, 2, []byte(msg)); err != nil {
 				log.Println("Write failed, reconnecting:", err)
 				conn.Close()
 				conn = connect()
